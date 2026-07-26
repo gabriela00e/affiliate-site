@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-pearl text-onyx font-body antialiased dark:bg-onyx dark:text-pearl;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display;
+  }
+  :focus-visible {
+    outline: 2px solid #C9A227;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .container-lux {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-gold-foil bg-gold px-6 py-3
+      text-sm font-semibold uppercase tracking-wide text-onyx shadow-lux transition-transform
+      hover:-translate-y-0.5 hover:shadow-gold-glow active:translate-y-0;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-onyx/20 bg-transparent
+      px-6 py-3 text-sm font-semibold uppercase tracking-wide text-onyx transition-colors
+      hover:border-gold hover:text-gold-dark dark:border-pearl/20 dark:text-pearl dark:hover:border-gold-light dark:hover:text-gold-light;
+  }
+
+  .nav-link {
+    @apply relative text-sm font-medium tracking-wide text-onyx/80 transition-colors hover:text-onyx dark:text-pearl/80 dark:hover:text-pearl;
+  }
+  .nav-link::after {
+    content: "";
+    @apply absolute -bottom-1 left-0 h-[1.5px] w-full origin-left scale-x-0 bg-gold transition-transform duration-300;
+  }
+  .nav-link:hover::after {
+    @apply scale-x-100;
+  }
+
+  .card-lux {
+    @apply rounded-2xl border border-onyx/5 bg-white shadow-lux transition-all duration-300
+      hover:-translate-y-1 hover:shadow-[0_16px_40px_-10px_rgba(201,162,39,0.35)]
+      dark:border-pearl/10 dark:bg-onyx2;
+  }
+
+  .seal {
+    @apply inline-flex items-center gap-1 rounded-full bg-gold-foil bg-gold px-3 py-1 text-[11px]
+      font-bold uppercase tracking-wider text-onyx shadow-lux;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #C9A227;
+  border-radius: 999px;
+}
