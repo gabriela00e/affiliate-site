@@ -29,7 +29,7 @@ export function ReviewForm({ productId }: { productId: string }) {
   if (status === "done") {
     return (
       <p className="rounded-xl bg-champagne/50 p-4 text-sm text-gold-dark">
-        Thanks for sharing your review! It'll appear shortly.
+        Thanks for sharing your review! It’ll appear shortly.
       </p>
     );
   }

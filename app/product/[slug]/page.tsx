@@ -20,8 +20,14 @@ import { formatPrice, siteUrl } from "@/lib/utils";
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
-  const products = await getAllProducts();
-  return products.map((p) => ({ slug: p.slug }));
+  try {
+    const products = await getAllProducts();
+    return products.map((p) => ({ slug: p.slug }));
+  } catch {
+    // If Supabase is unreachable at build time, skip prebuilding product
+    // pages — they'll still render correctly on-demand at request time.
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {

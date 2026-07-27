@@ -4,9 +4,9 @@ import { siteUrl } from "@/lib/utils";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [products, categories, posts] = await Promise.all([
-    getAllProducts(),
-    getCategories(),
-    getBlogPosts(),
+    getAllProducts().catch(() => []),
+    getCategories().catch(() => []),
+    getBlogPosts().catch(() => []),
   ]);
 
   const staticRoutes = [

@@ -51,7 +51,7 @@ export default async function HomePage() {
       {/* Featured */}
       <section className="container-lux py-14">
         <div className="mb-6 flex items-end justify-between">
-          <h2 className="font-display text-2xl">Editor's picks</h2>
+          <h2 className="font-display text-2xl">Editor’s picks</h2>
           <Link href="/search" className="text-sm font-semibold text-gold-dark hover:underline">
             View all →
           </Link>

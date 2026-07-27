@@ -18,7 +18,7 @@ export function Footer() {
             Join the list
           </h4>
           <p className="mb-4 text-sm text-onyx/70 dark:text-pearl/60">
-            New drops and editor's picks, once a week.
+            New drops and editor’s picks, once a week.
           </p>
           <NewsletterForm />
         </div>

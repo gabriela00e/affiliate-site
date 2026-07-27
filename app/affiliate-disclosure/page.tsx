@@ -31,7 +31,7 @@ export default function AffiliateDisclosurePage() {
         subject to change. Always check the current price and details on Amazon before purchasing.
       </p>
 
-      <p>Thank you for supporting {SITE_NAME} — it's how we keep the lights on and the reviews honest.</p>
+      <p>Thank you for supporting {SITE_NAME} — it’s how we keep the lights on and the reviews honest.</p>
     </div>
   );
 }
