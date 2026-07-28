@@ -5,6 +5,8 @@ import { ProductGrid } from "@/components/ProductGrid";
 import { NewsletterForm } from "@/components/NewsletterForm";
 import { SITE_NAME } from "@/lib/constants";
 
+export const revalidate = 3600;
+
 export default async function HomePage() {
   const [categories, featured, bestSellers, posts] = await Promise.all([
     getCategories(),

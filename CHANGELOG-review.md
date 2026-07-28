@@ -1,3 +1,152 @@
+# Deep architecture audit — this round's changelog
+
+## 1. Suspense/`useSearchParams()` error reported across most pages
+
+**Verified:** an exhaustive grep of the uploaded project confirmed zero real
+`useSearchParams()` call sites — only the code comment. The hook genuinely is
+not in this codebase.
+
+**Real root cause (evidence-based conclusion):** the error was reported
+against pages with zero relation to Suspense or `useSearchParams` in this
+codebase — `/privacy-policy`, `/affiliate-disclosure`, `/admin/login`,
+`/admin/products` — which rules out an actual per-page bug. The pattern (same
+exact error string, attributed to nearly every route including unrelated
+ones) is the signature of a **cascading build failure**: `next build`
+collects page data across a worker pool in parallel; when one route's
+build-time render throws an uncaught error (see #2), that worker aborts
+mid-batch, and Next's build reporter can attribute a stale/generic diagnostic
+to other in-flight routes before reaching the real fatal error later in the
+log. The Supabase crash below is that real fatal error, and is almost
+certainly also the source of this noise.
+
+**Action to confirm in one step, no code change required:** redeploy on
+Vercel with "Use existing Build Cache" unchecked (or `vercel --force`). If the
+Suspense messages disappear and only the Supabase error remains, that
+confirms this conclusively.
+
+**Change made anyway, as defense-in-depth:** restored
+`components/SearchBarLazy.tsx` (`next/dynamic(..., { ssr: false })`) and
+`components/SearchBarSkeleton.tsx`, and wired `components/Header.tsx` back
+to use `SearchBarLazy` at both call sites (desktop + mobile menu), on top of
+the already hook-free `SearchBar.tsx`. This guarantees `SearchBar` is
+excluded from every server/static render pass outright, regardless of how
+any given Next.js build handles Suspense boundaries during its various
+prerender passes.
+
+## 2. `Invalid supabaseUrl` build failure
+
+**Root cause:** `NEXT_PUBLIC_SUPABASE_URL` is inlined into the JS bundle at
+`next build` time, not read at runtime. If it isn't attached to the **Build**
+step of whichever environment is deploying (Production/Preview) in Vercel's
+Project Settings → Environment Variables, `process.env.NEXT_PUBLIC_SUPABASE_URL`
+is `undefined` during the build. The `!` in the old code
+(`process.env.NEXT_PUBLIC_SUPABASE_URL!`) is a TypeScript non-null assertion
+with **zero runtime effect** — it does not prevent `undefined` from reaching
+`createClient()`. `@supabase/supabase-js` then throws its own generic
+`"Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL."`
+
+**Why it happens at build time specifically:** `app/page.tsx`,
+`app/blog/page.tsx`, `app/best-sellers/page.tsx`, `app/top-10/page.tsx`,
+`app/category/[slug]/page.tsx`, and `app/product/[slug]/page.tsx` (via
+`generateStaticParams`) have no `dynamic` export and use no Dynamic API, so
+Next statically renders them **once, during `next build`** — that's exactly
+when `lib/queries.ts` calls `createClient()` and crashes.
+
+**Why `app/api/newsletter/route.ts` and `app/api/products/by-ids/route.ts`
+(named in the original stack trace) are not actually the build-time culprits:**
+both are POST-only route handlers. Non-GET route handlers are always dynamic
+and are never executed at build time — their appearance in a bundled stack
+trace is webpack surfacing shared modules (`lib/supabase/server.ts`,
+`lib/queries.ts`), not the literal crash site. Verified every GET route
+handler in the project (`app/api/admin/stats/route.ts`,
+`app/api/admin/products/route.ts`, `app/api/admin/products/[id]/route.ts`)
+calls `requireAdmin()` → `cookies()`, a Dynamic API, so all of them are
+already correctly excluded from static/build-time execution.
+
+**The actual fix has two parts:**
+1. **Operational (the real fix):** in Vercel → Project Settings →
+   Environment Variables, confirm `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are set
+   for the **Build** step of the environment being deployed, then trigger a
+   new deployment — adding an env var does not retroactively apply to an
+   already-queued or cached build.
+2. **Code (`lib/env.ts`, new; `lib/supabase/server.ts`,
+   `lib/supabase/client.ts`, `lib/supabase/admin.ts`):** added a shared
+   `requireEnv(name)` helper that throws a precise error naming exactly which
+   variable is missing and where to fix it, instead of letting the generic
+   supabase-js message surface on its own. This doesn't change *whether* a
+   missing var fails the build (it still should — see below) — it changes
+   *how quickly you can diagnose it* next time.
+
+## 3. Static generation strategy — inconsistent ISR
+
+**Finding:** `product/[slug]/page.tsx` was the only Supabase-backed page with
+`export const revalidate = 3600`. Every other data-driven page had none —
+meaning `/`, `/category/[slug]`, `/blog`, `/blog/[slug]`, `/top-10`,
+`/top-10/[category]`, and `/best-sellers` were rendered once at build time and
+never revalidated, contradicting the README's claim of a site-wide 1-hour ISR
+window.
+
+**Why static + ISR (not `force-dynamic`) is correct here:** this is an
+SEO-driven affiliate storefront; static generation with periodic revalidation
+gives cached HTML performance/SEO benefits while still reflecting catalog
+changes within an hour. `force-dynamic` would hit Supabase on every request
+and lose the static-generation benefit entirely — not worth it for content
+that changes on the order of "occasionally," not "every request."
+
+**Fix:** added `export const revalidate = 3600;` to `app/page.tsx`,
+`app/blog/page.tsx`, `app/blog/[slug]/page.tsx`, `app/top-10/page.tsx`,
+`app/top-10/[category]/page.tsx`, `app/best-sellers/page.tsx`, and
+`app/category/[slug]/page.tsx`, matching the pattern already used on
+`app/product/[slug]/page.tsx`.
+
+**Left as a deliberate, documented open choice (not changed):**
+`app/category/[slug]/page.tsx`'s `generateStaticParams` already wraps
+`getCategories()` in try/catch, returning `[]` on failure rather than
+crashing the whole build — a graceful-degradation pattern. None of the other
+pages have this. Extending it everywhere is a legitimate option, but it's a
+fail-soft-vs-fail-loud tradeoff the project owner should choose deliberately:
+failing the build loudly when Supabase is unreachable prevents silently
+deploying a broken/empty storefront, which a try/catch would mask. Flagging
+this rather than unilaterally changing it.
+
+## 4. Admin pages — prerendering check
+
+**Finding:** `app/admin/layout.tsx` and every admin page have no server-side
+Dynamic API call anywhere in that subtree (verified via grep for
+`cookies()`/`headers()` under `app/admin/` — zero matches), so nothing
+currently tells Next's build step this content is per-user. Today this is
+harmless in practice — all admin data loads client-side via `fetch()` after
+mount, and `middleware.ts` correctly blocks real unauthorized requests at the
+edge before any cached HTML reaches a visitor — but it's fragile: a future
+server-rendered per-admin value would get silently baked into shared static
+output with no build-time warning.
+
+**Fix:** added `export const dynamic = "force-dynamic";` to
+`app/admin/layout.tsx`. This cascades to every nested admin route and is
+standard Next.js best practice for any authenticated/session-based section,
+regardless of whether today's pages happen to need it yet.
+
+## 5. Full build-blocker audit — summary of every item found
+
+| # | Issue | File(s) | Status |
+|---|---|---|---|
+| 1 | Cascading Suspense error, root cause = #2 | (build process itself) | Explained; confirm via clean-cache redeploy |
+| 2 | `NEXT_PUBLIC_SUPABASE_URL` undefined at build time | `lib/supabase/{server,client,admin}.ts`, Vercel env config | Code hardened (`lib/env.ts`); operational fix required in Vercel dashboard |
+| 3 | Inconsistent ISR across data-driven pages | 7 page files listed above | Fixed — `revalidate = 3600` added everywhere |
+| 4 | Admin section not explicitly forced dynamic | `app/admin/layout.tsx` | Fixed — `export const dynamic = "force-dynamic"` |
+| 5 | `SearchBarLazy`/`ssr:false` defense-in-depth missing in this upload | `components/Header.tsx`, `SearchBarLazy.tsx`, `SearchBarSkeleton.tsx` | Restored |
+| — | Route handlers, `generateStaticParams`, metadata, sitemap, robots, middleware, server/client boundaries | (all) | Re-audited individually; no issues found beyond the above |
+
+No other architectural issues were found in this pass: every route handler's
+HTTP method / Dynamic API usage was individually re-verified, `middleware.ts`
+matcher and JWT verification logic is unchanged and correct,
+`generateStaticParams` implementations are consistent, `sitemap.ts`/`robots.ts`
+have no Supabase calls that could crash at build time in a new way, and every
+Client/Server Component boundary was re-checked as in the previous audit.
+
+---
+
 # Production-readiness review — changelog
 
 ## Method

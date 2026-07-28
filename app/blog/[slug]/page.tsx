@@ -5,6 +5,8 @@ import { getBlogPostBySlug } from "@/lib/queries";
 import { ShareButtons } from "@/components/ShareButtons";
 import { siteUrl } from "@/lib/utils";
 
+export const revalidate = 3600;
+
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const post = await getBlogPostBySlug(params.slug);
   if (!post) return {};

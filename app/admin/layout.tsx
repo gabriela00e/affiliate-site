@@ -2,6 +2,14 @@ import Link from "next/link";
 import { LayoutDashboard, Package, PlusCircle } from "lucide-react";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 
+// The admin section is gated by middleware.ts (signed-cookie session check)
+// and by requireAdmin() inside its API routes — both correct and functional
+// today. This export is additional, deliberate insurance: it tells Next.js
+// itself that nothing under /admin should ever be statically cached, so a
+// future server-rendered per-admin value can't get silently baked into a
+// shared static build and served to every visitor.
+export const dynamic = "force-dynamic";
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-champagne/20 dark:bg-onyx">

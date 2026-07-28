@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { requireEnv } from "@/lib/env";
 
 // Stateless anon-key client for server-side public reads — used in Server
 // Components, Route Handlers, AND build-time functions like
@@ -12,8 +13,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 // what generateStaticParams and sitemap.ts are (they run at build time).
 export function createClient() {
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     { auth: { persistSession: false } }
   );
 }

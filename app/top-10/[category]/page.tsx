@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { getCategoryBySlug, getTop10 } from "@/lib/queries";
 import { ProductCard } from "@/components/ProductCard";
 
+export const revalidate = 3600;
+
 export async function generateMetadata({ params }: { params: { category: string } }): Promise<Metadata> {
   const category = await getCategoryBySlug(params.category);
   if (!category) return {};

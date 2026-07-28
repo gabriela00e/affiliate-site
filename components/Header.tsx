@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { Heart, Scale, Menu, X } from "lucide-react";
 import { NAV_LINKS, SITE_NAME } from "@/lib/constants";
-import { SearchBar } from "@/components/SearchBar";
+import { SearchBarLazy } from "@/components/SearchBarLazy";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLists } from "@/components/providers/ListsProvider";
 
@@ -29,7 +29,7 @@ export function Header() {
         </nav>
 
         <div className="hidden max-w-xs flex-1 md:block">
-          <Suspense fallback={null}><SearchBar /></Suspense>
+          <SearchBarLazy />
         </div>
 
         <div className="flex items-center gap-4">
@@ -63,7 +63,7 @@ export function Header() {
       {open && (
         <div className="border-t border-onyx/5 px-4 pb-6 pt-4 lg:hidden dark:border-pearl/10">
           <div className="mb-4">
-            <Suspense fallback={null}><SearchBar /></Suspense>
+            <SearchBarLazy />
           </div>
           <nav className="flex flex-col gap-4">
             {NAV_LINKS.map((link) => (

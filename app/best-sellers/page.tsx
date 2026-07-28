@@ -5,6 +5,7 @@ export const metadata = {
   title: "Best Sellers",
   description: "The most-clicked, most-loved Amazon beauty picks from our readers.",
 };
+export const revalidate = 3600;
 
 export default async function BestSellersPage() {
   const products = await getBestSellers(24);

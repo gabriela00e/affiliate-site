@@ -4,6 +4,8 @@ import { getCategories, getCategoryBySlug, getProductsByCategory } from "@/lib/q
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { ProductGrid } from "@/components/ProductGrid";
 
+export const revalidate = 3600;
+
 export async function generateStaticParams() {
   try {
     const categories = await getCategories();

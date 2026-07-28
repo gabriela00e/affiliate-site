@@ -3,6 +3,7 @@ import Image from "next/image";
 import { getBlogPosts } from "@/lib/queries";
 
 export const metadata = { title: "Blog", description: "Beauty guides, roundups, and honest reviews." };
+export const revalidate = 3600;
 
 export default async function BlogPage() {
   const posts = await getBlogPosts();

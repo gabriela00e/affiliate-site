@@ -6,6 +6,7 @@ export const metadata = {
   title: "Top 10 Products",
   description: "Our editors' top 10 picks across every category, ranked and updated regularly.",
 };
+export const revalidate = 3600;
 
 export default async function Top10Page() {
   const [categories, overall] = await Promise.all([getCategories(), getTop10()]);
