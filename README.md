@@ -44,6 +44,15 @@ scripts/                 Password-hash generator + demo data seeder
 npm install
 ```
 
+This generates (or updates) `package-lock.json`. **Commit that file to git.** Every
+dependency in `package.json` is pinned to an exact version (no `^`/`~` ranges), and
+CI/`npm ci` in this repo relies on the lockfile matching `package.json` exactly —
+without a committed lockfile, a fresh `npm install` on Vercel could otherwise resolve
+newer versions of `@supabase/*`, `lucide-react`, etc. over time and reintroduce type
+errors that don't reproduce locally. Use `npm install` (not `npm ci`) the first time
+you add the lockfile; after that, `npm ci` is what CI and Vercel should use for
+reproducible installs.
+
 ### 3.2 Create a Supabase project
 
 1. Go to [supabase.com](https://supabase.com) → New Project.

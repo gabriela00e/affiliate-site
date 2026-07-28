@@ -13,7 +13,9 @@ export function formatPrice(price: number | null, currency = "USD") {
 }
 
 export function siteUrl(path = "") {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const withProtocol = raw && !/^https?:\/\//i.test(raw) ? `https://${raw}` : raw;
+  const base = withProtocol || "http://localhost:3000";
   return `${base.replace(/\/$/, "")}${path}`;
 }
 

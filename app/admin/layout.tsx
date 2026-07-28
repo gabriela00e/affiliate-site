@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutDashboard, Package, PlusCircle, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, PlusCircle } from "lucide-react";
 import { LogoutButton } from "@/components/admin/LogoutButton";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
