@@ -1,22 +1,26 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { useState } from "react";
-
-export function SearchBarSkeleton() {
-  return (
-    <div
-      aria-hidden
-      className="h-9 w-full rounded-full border border-onyx/10 bg-white dark:border-pearl/10 dark:bg-onyx2"
-    />
-  );
-}
+import { useEffect, useState } from "react";
 
 export function SearchBar() {
   const router = useRouter();
-  const params = useSearchParams();
-  const [value, setValue] = useState(params.get("q") ?? "");
+  const [value, setValue] = useState("");
+
+  // Prefill from the current query string on mount, client-side only. This
+  // deliberately avoids next/navigation's useSearchParams() hook — the hook
+  // itself is what forces Next to treat this component as needing a
+  // Suspense/dynamic-render boundary during prerendering, and that
+  // requirement has proven unreliable for the legacy "/404" static export
+  // pass on this project. Reading window.location.search directly gives the
+  // same value without depending on that hook at all. Both the server render
+  // and the first client render use the same initial "" value, so there is
+  // no hydration mismatch — this effect only updates it after mount.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setValue(q);
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

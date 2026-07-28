@@ -129,3 +129,87 @@ the failing page was the framework's own not-found route, not a page in `app/`.
 - `app/compare`, `app/wishlist`, `app/admin/*` — checked individually; none call
   the navigation hooks directly, and their `"use client"` directives are all
   correctly placed as the first line of the file.
+
+---
+
+## Second follow-up — Suspense boundary didn't fully resolve it on Vercel
+
+The `<Suspense>` wrap around `SearchBar` fixed the App Router's own
+`/_not-found` prerender, but the error persisted at `page "/404"` specifically.
+Next.js always emits **two** 404 artifacts for an App Router project: the App
+Router's `/_not-found`, and a legacy static `/404` page generated through the
+Pages Router compatibility layer for static-export fallback behavior. That
+legacy `/404` generation pass uses a simplified static-rendering path that,
+in some Next 14.x builds, does not reliably honor `<Suspense>` boundaries
+around client hooks — so a component wrapped correctly in `<Suspense>` can
+still throw during that specific pass.
+
+**Fix — stronger than Suspense, sidesteps the server render entirely:**
+
+- `components/SearchBarSkeleton.tsx` (new) — the placeholder skeleton, moved
+  into its own file with no hooks and no `"use client"` directive, fully
+  decoupled from the module that calls `useSearchParams()`.
+- `components/SearchBarLazy.tsx` (new) — a `"use client"` wrapper that loads
+  the real `SearchBar` via `next/dynamic(..., { ssr: false })`. With
+  `ssr: false`, Next excludes that component from every server and static
+  render pass outright — it only mounts in the browser after hydration. This
+  is a strictly stronger guarantee than `<Suspense>`, which still requires
+  Next to attempt and correctly bail out of a server render; `ssr:false`
+  never attempts that render at all, so the legacy `/404` pass has nothing to
+  fail on.
+- `components/SearchBar.tsx` — now contains only the real client component
+  (the skeleton export was removed, since it lives in its own file now).
+- `components/Header.tsx` — both instances (desktop + mobile menu) now render
+  `<SearchBarLazy />` directly; the `<Suspense>` wrapper is no longer needed
+  since `ssr:false` already guarantees no server-side execution.
+
+Verified `SearchBar.tsx` (the real, hook-bearing component) is now referenced
+in exactly one place in the whole project: the dynamic `import()` call inside
+`SearchBarLazy.tsx`. It is never statically imported anywhere else, so there
+is no remaining path by which it can execute during a server or static render.
+
+---
+
+## Third follow-up — root-caused: eliminated useSearchParams() entirely
+
+The `ssr: false` wrapper still didn't resolve it on Vercel, which means this
+project's Next 14.2.35 build doesn't honor `ssr:false` for the legacy `/404`
+static-export pass either, not just `<Suspense>`. Re-ran an exhaustive,
+whole-repo grep for `useSearchParams`, `useRouter`, `usePathname`,
+`useSelectedLayoutSegment`, and `useSelectedLayoutSegments` across every
+`.ts`/`.tsx`/`.js`/`.mjs` file (not just `app/` and `components/`), and
+individually re-inspected every component reachable from `app/layout.tsx`:
+`Header`, `Footer`, `ThemeProvider` (wraps `next-themes`, which has no
+dependency on `next/navigation`), `ListsProvider`, and `NewsletterForm`.
+Confirmed `components/SearchBar.tsx` was — and always had been — the only
+call site of `useSearchParams()` in the entire project.
+
+Since two different framework-level workarounds (`<Suspense>`, then
+`ssr:false`) both failed to make Next.js reliably skip that hook during its
+legacy `/404` prerender pass, the only fully deterministic fix left is to stop
+calling the hook at all, anywhere:
+
+- **`components/SearchBar.tsx`** — removed `useSearchParams()` entirely. It
+  was only ever used to prefill the input from the current `?q=` value on
+  first render. That's now read directly from `window.location.search`
+  inside a `useEffect`, guarded so it only runs client-side. Both the server
+  render and the initial client render use the same `""` starting value, so
+  there's no hydration mismatch — the effect just updates it after mount.
+  `useRouter()` is still used for the submit-time `router.push()`, which is
+  unaffected by this bug class (it doesn't require a Suspense boundary).
+- **`components/Header.tsx`** — simplified back to a direct
+  `import { SearchBar } from "@/components/SearchBar"` and plain
+  `<SearchBar />` at both call sites. With the hook gone, `SearchBar` is a
+  perfectly ordinary client component with nothing that needs a Suspense
+  boundary or an `ssr:false` wrapper — reintroducing that indirection would
+  only be complexity with no purpose.
+- **Deleted** `components/SearchBarLazy.tsx` and
+  `components/SearchBarSkeleton.tsx` — dead code once the wrapper they
+  supported was removed.
+
+Final verification: `grep -rn "useSearchParams" .` (excluding `node_modules`
+and `.next`) across the entire project returns zero matches outside of a code
+comment. There is no remaining code path, direct or indirect, by which this
+hook can be invoked — so there is nothing left for the `/404` prerender pass
+to trip on, regardless of how that specific pass handles Suspense or
+`ssr:false` boundaries.
