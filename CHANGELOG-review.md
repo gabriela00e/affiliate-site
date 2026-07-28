@@ -86,3 +86,46 @@ All of `app/**`, all of `components/**`, `lib/queries.ts`, `lib/auth.ts`,
 `types/index.ts`, `scripts/seed.ts`, `scripts/generate-password-hash.ts`,
 `supabase/schema.sql`, `next.config.mjs`, `tsconfig.json`, `tailwind.config.ts`,
 `postcss.config.mjs`, `.eslintrc.json`, `.env.example`, `.gitignore`.
+
+---
+
+## Follow-up fix — `useSearchParams()` prerender failure on `/_not-found`
+
+**Error:** `useSearchParams() should be wrapped in a Suspense boundary at page
+"/404"` / `Error occurred prerendering page "/_not-found"`.
+
+**Audit performed:** searched the entire project for every usage of
+`useSearchParams()`, `useRouter()`, and `usePathname()`; checked that every file
+calling a client-only hook has `"use client"` as its literal first line; checked
+that no Server Component imports a hook (as opposed to a plain function like
+`notFound()`) from `next/navigation`.
+
+**Root cause:** `components/SearchBar.tsx` is the only file in the project that
+calls `useSearchParams()`. It's rendered directly inside `components/Header.tsx`,
+which is mounted in `app/layout.tsx` — so it renders on *every* route, including
+Next's auto-generated `/_not-found` page. An unguarded `useSearchParams()` call
+inside a component that gets statically prerendered fails the build exactly the
+way you saw; wrapping the page itself in `<Suspense>` wouldn't have helped, since
+the failing page was the framework's own not-found route, not a page in `app/`.
+
+**Fix:**
+- `components/SearchBar.tsx` — added a `SearchBarSkeleton` export: a static,
+  hook-free placeholder sized to match the real search input, used as the
+  Suspense fallback.
+- `components/Header.tsx` — wrapped both `<SearchBar />` instances (desktop bar
+  and mobile menu) in `<Suspense fallback={<SearchBarSkeleton />}>`.
+- `app/not-found.tsx` (new) — didn't exist before; added a proper custom 404
+  page. It's a plain Server Component with zero hooks, so it can't reintroduce
+  this class of bug.
+
+**Verified clean (no changes needed):**
+- `useRouter()` usages (`app/admin/login/page.tsx`, `components/admin/LogoutButton.tsx`,
+  `components/admin/ProductForm.tsx`) — `useRouter()` alone doesn't require a
+  Suspense boundary, and all three files are already correctly marked `"use client"`.
+- `usePathname()` — not used anywhere in the project.
+- `app/search/page.tsx` — reads search terms via the `searchParams` **prop** on a
+  Server Component, which is a completely different mechanism from the
+  `useSearchParams()` hook and was never at risk.
+- `app/compare`, `app/wishlist`, `app/admin/*` — checked individually; none call
+  the navigation hooks directly, and their `"use client"` directives are all
+  correctly placed as the first line of the file.

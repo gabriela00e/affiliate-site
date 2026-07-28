@@ -4,6 +4,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { useState } from "react";
 
+export function SearchBarSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="h-9 w-full rounded-full border border-onyx/10 bg-white dark:border-pearl/10 dark:bg-onyx2"
+    />
+  );
+}
+
 export function SearchBar() {
   const router = useRouter();
   const params = useSearchParams();
